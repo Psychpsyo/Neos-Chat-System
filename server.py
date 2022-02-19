@@ -79,7 +79,8 @@ richMessageCodes = [
 	("[sub]", "<sub>"),
 	("[/sub]", "</sub>"),
 	("[sup]", "<sup>"),
-	("[/sup]", "</sup>")
+	("[/sup]", "</sup>"),
+	("[br]", "<br>")
 ]
 
 # returns room on sucess or an error string on error.
