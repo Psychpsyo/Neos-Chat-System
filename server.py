@@ -15,7 +15,7 @@ userID = contextvars.ContextVar("userID", default = None) # the userID of the us
 verified = contextvars.ContextVar("verified") # the userID of the user in the current context (if authenticated)
 currentRoom = contextvars.ContextVar("currentRoom", default = None) # the room that the user in the current context is in
 
-iconAmount = 10
+iconAmount = 18
 
 richMessageCodes = [
 	# emoji
@@ -80,7 +80,9 @@ richMessageCodes = [
 	("[/sub]", "</sub>"),
 	("[sup]", "<sup>"),
 	("[/sup]", "</sup>"),
-	("[br]", "<br>")
+	("[br]", "<br>"),
+	("[big]", "<size=2>"),
+	("[/big]", "</size>")
 ]
 
 # returns room on sucess or an error string on error.
@@ -104,7 +106,7 @@ async def createNewRoom(name, icon, userID, bySystem = False):
 			name = name[:50]
 		
 		# turn invalid icons into icon 0 (???)
-		if icon < 0 or icon > iconAmount:
+		if icon < 0 or icon >= iconAmount:
 			icon = 0
 		
 		# create the room
