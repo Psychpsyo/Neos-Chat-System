@@ -56,6 +56,13 @@ richMessageCodes = [
 	(":ghost:", "<sprite name=ghost>"),
 	(":boo:", "<sprite name=ghost>"),
 	(":anime:", "<sprite name=anime>"),
+	(":highfive:", "<sprite name=high_five>"),
+	(":gunleft:", "<sprite name=gun_left>"),
+	(":gunl:", "<sprite name=gun_left>"),
+	(":gunright:", "<sprite name=gun_right>"),
+	(":gunr:", "<sprite name=gun_right>"),
+	(":arm:", "<sprite name=arm>"),
+	(":loric:", "<sprite name=loric>"),
 	# kaomoji
 	(";shrug;", "¯\_(ツ)_/¯"),
 	(";flip;", "(╯°□°)╯︵ ┻━┻"),
