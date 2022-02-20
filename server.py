@@ -16,7 +16,28 @@ userID = contextvars.ContextVar("userID", default = None) # the userID of the us
 verified = contextvars.ContextVar("verified") # the userID of the user in the current context (if authenticated)
 currentRoom = contextvars.ContextVar("currentRoom", default = None) # the room that the user in the current context is in
 
-iconAmount = 18
+iconAmount = 19
+iconNames = [
+	"???",
+	"logix",
+	"dev",
+	"chat",
+	"help",
+	"cool",
+	"epic",
+	"bored",
+	"anime",
+	"furry",
+	"ncr",
+	"sugoi",
+	"kawaii",
+	"japanese",
+	"korean",
+	"chinese",
+	"german",
+	"russian",
+	"french"
+]
 
 richMessageCodes = [
 	# emoji
@@ -101,10 +122,12 @@ richMessageCodes = [
 # SLASH COMMANDS (all of these are called with the room lock already engaged and with currentRoom existing)
 # All of them return a boolean for whether or not the command was successful.
 
+globalAdmins = ["U-Psychpsyo"]
+
 async def clearBadWords(params):
 	# check if the user is the owner of the room
-	if currentRoom.get()["owner"] != userID.get():
-		await socket.get().send("err:You must be the owner of this room to use this command.")
+	if currentRoom.get()["owner"] != userID.get() or not verified.get():
+		await socket.get().send("err:You must be the verified owner of this room to use this command.")
 		return False
 	
 	currentRoom.get()["badWords"] = []
@@ -112,8 +135,8 @@ async def clearBadWords(params):
 
 async def addBadWord(params):
 	# check if the user is the owner of the room
-	if currentRoom.get()["owner"] != userID.get():
-		await socket.get().send("err:You must be the owner of this room to use this command.")
+	if currentRoom.get()["owner"] != userID.get() or not verified.get():
+		await socket.get().send("err:You must be the verified owner of this room to use this command.")
 		return False
 	
 	currentRoom.get()["badWords"].append(params)
@@ -121,8 +144,8 @@ async def addBadWord(params):
 
 async def removeBadWord(params):
 	# check if the user is the owner of the room
-	if currentRoom.get()["owner"] != userID.get():
-		await socket.get().send("err:You must be the owner of this room to use this command.")
+	if currentRoom.get()["owner"] != userID.get() or not verified.get():
+		await socket.get().send("err:You must be the verified owner of this room to use this command.")
 		return False
 	
 	try:
@@ -134,8 +157,8 @@ async def removeBadWord(params):
 
 async def setRoomName(params):
 	# check if the user is the owner of the room
-	if currentRoom.get()["owner"] != userID.get():
-		await socket.get().send("err:You must be the owner of this room to use this command.")
+	if currentRoom.get()["owner"] != userID.get() or not verified.get():
+		await socket.get().send("err:You must be the verified owner of this room to use this command.")
 		return False
 	
 	currentRoom.get()["name"] = params
@@ -144,12 +167,29 @@ async def setRoomName(params):
 
 async def setRoomIcon(params):
 	# check if the user is the owner of the room
-	if currentRoom.get()["owner"] != userID.get():
-		await socket.get().send("err:You must be the owner of this room to use this command.")
+	if currentRoom.get()["owner"] != userID.get() or not verified.get():
+		await socket.get().send("err:You must be the verified owner of this room to use this command.")
 		return False
 	
-	currentRoom.get()["name"] = params
-	# TODO: message all users that their room name changed.
+	newIcon = -1
+	# check if the paramter was the name of a room icon
+	try:
+		newIcon = iconNames.index(params.lower())
+	except:
+		pass
+	# if it wasn't, check if it was the index.
+	if newIcon < 0:
+		try:
+			newIcon = int(params)
+		except:
+			pass
+	
+	# validate the parsed index
+	if newIcon < 0 or newIcon >= iconAmount:
+		await socket.get().send("err:You specified an invalid room icon.")
+		return False
+	
+	currentRoom.get()["icon"] = newIcon
 	return True
 
 # makes it so that the room does not disappear when everyone leaves it.
