@@ -152,11 +152,30 @@ async def setRoomIcon(params):
 	# TODO: message all users that their room name changed.
 	return True
 
+# makes it so that the room does not disappear when everyone leaves it.
+async def makePersistent(params):
+	if userID.get() not in globalAdmins or not verified.get():
+		await socket.get().send("err:You must be a verified admin to use this command.")
+		return False
+	
+	currentRoom.get()["alwaysOpen"] = True
+
+# makes it so that the room disappears when everyone leaves it.
+async def makeNonpersistent(params):
+	if userID.get() not in globalAdmins or not verified.get():
+		await socket.get().send("err:You must be a verified admin to use this command.")
+		return False
+	
+	currentRoom.get()["alwaysOpen"] = False
+
 slashCommands = {
 	"clearbadwords": clearBadWords,
 	"addbadword": addBadWord,
 	"removebadword": removeBadWord,
-	"setroomname": setRoomName
+	"setroomname": setRoomName,
+	"setroomicon": setRoomIcon,
+	"makepersistent": makePersistent,
+	"makenonpersistent": makeNonpersistent
 }
 
 # FUNCTIONS THAT PERTAIN TO CORE ROOM MANAGEMENT / MESSAGE SENDING
