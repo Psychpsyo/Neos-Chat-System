@@ -74,6 +74,7 @@ richMessageCodes = [
 	(":money:", "<sprite name=money_eyes>"),
 	(":cash:", "<sprite name=money_eyes>"),
 	(":$:", "<sprite name=money_eyes>"),
+	(":smirk:", "<sprite name=smirk>"),
 	# kaomoji
 	(";shrug;", "¯\_(ツ)_/¯"),
 	(";flip;", "(╯°□°)╯︵ ┻━┻"),
