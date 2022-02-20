@@ -115,7 +115,7 @@ richMessageCodes = [
 	("[sup]", "<sup>"),
 	("[/sup]", "</sup>"),
 	("[br]", "<br>"),
-	("[big]", "<size=48>"),
+	("[big]", "<size=480>"),
 	("[/big]", "</size>")
 ]
 
