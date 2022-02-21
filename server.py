@@ -435,7 +435,7 @@ async def takeClient(websocket, path):
 	async with roomLock:
 		if currentRoom.get():
 			currentRoom.get()["users"].remove(websocket)
-			if len(currentRoom.get()["users"]) == 0:
+			if len(currentRoom.get()["users"]) == 0 and not currentRoom.get()["alwaysOpen"]:
 				rooms.remove(currentRoom.get())
 
 loop = asyncio.get_event_loop()
