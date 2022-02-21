@@ -4,6 +4,7 @@ import contextvars
 import base64
 import aiohttp
 import os
+import re
 
 # VARIABLE DEFINITIONS
 
@@ -289,7 +290,7 @@ def formatRichMessage(message, badWords):
 		if currentCode:
 			# we have reached an RTF tag, replace bad words with stars and write to message
 			for word in badWords:
-				currentChain.replace(word, "*" * len(word))
+				currentChain = re.sub(re.escape(word), "*" * len(word), currentChain, flags=re.IGNORECASE)
 			
 			# insert the noparse and append to message
 			message += "<noparse=" + str(len(currentChain)) + ">" + currentChain + currentCode[1]
@@ -299,6 +300,10 @@ def formatRichMessage(message, badWords):
 	
 	# we may have some currentChain left over
 	if currentChain != "":
+		# also censor bad words here!
+		for word in badWords:
+			currentChain = re.sub(re.escape(word), "*" * len(word), currentChain, flags=re.IGNORECASE)
+		
 		message += "<noparse=" + str(len(currentChain)) + ">" + currentChain
 	
 	# return the fully substituted and replaced string
@@ -356,75 +361,75 @@ async def takeClient(websocket, path):
 	# ask client to verify themselves with a new verification key
 	verificationCode = base64.b64encode(os.urandom(32)).decode("utf-8")
 	await websocket.send("vrf:" + verificationCode)
-	#try:
-	async for message in websocket:
-		if message.startswith("[message]"): # sending a message
-			# cut out the initial [message]
-			message = message[9:]
-			if currentRoom.get():
-				if message.startswith("/"):
-					# slash commands
-					command = message[1:message.find(" ") if message.find(" ") != -1 else len(message)].lower()
-					# check if command exists
-					if command not in slashCommands:
-						# send red message and an error back
-						await websocket.send("err:The entered command does not exist.")
-						await websocket.send("msg:" + userID.get() + "|" + str(verified.get()) + "|<color=#fbb><noparse=" + str(len(message)) + ">" + message)
-						continue
-					params = message[message.find(" ") + 1:] if message.find(" ") > 0 else ""
-					async with roomLock:
-						if currentRoom.get():
-							messageColor = "bfb" if await slashCommands[command](params) else "fbb"
-							# send green message back
-							await websocket.send("msg:" + userID.get() + "|" + str(verified.get()) + "|<color=#" + messageColor + "><noparse=" + str(len(message)) + ">" + message)
-				else:
-					await sendMessage(message)
-		elif message.startswith("[join]"): # joining a room
-			# if user is already in a room, ignore this message
-			if currentRoom.get():
-				await websocket.send("err:Cannot join a room when already in a room.")
-				continue
-			roomID = int(message[6:])
-			async with roomLock:
-				room = next((room for room in rooms if room["id"] == roomID), None)
-				if room:
-					currentRoom.set(room)
-					room["users"].append(websocket)
-					await websocket.send("jnd:" + room["name"])
-					# send all old messages of the room to the new user
-					for message in room["messages"]:
-						await websocket.send(message)
-				else:
-					await websocket.send("err:The room you tried to join does not exist anymore.")
-		elif message.startswith("[leave]"): # leaving a room
-			async with roomLock:
+	try:
+		async for message in websocket:
+			if message.startswith("[message]"): # sending a message
+				# cut out the initial [message]
+				message = message[9:]
 				if currentRoom.get():
-					currentRoom.get()["users"].remove(websocket)
-					if len(currentRoom.get()["users"]) == 0 and not currentRoom.get()["alwaysOpen"]:
-						rooms.remove(currentRoom.get())
-					currentRoom.set(None)
-			# after removing them from the room, inform the client.
-			await websocket.send("lft")
-			await refreshRoomList()
-		elif message.startswith("[room]"): # creating a room
-			roomParams = message[6:].split("|") # [0] is the name, [1] is the icon.
-			error = await createNewRoom(roomParams[0], int(roomParams[1]), userID.get())
-			if error: # if a string got returned, it is an error
-				await websocket.send("err:" + error)
-		elif message.startswith("[refresh]"): # client wants to refresh their room list
-			await refreshRoomList()
-		elif message.startswith("[iam]"): # client identifies themselves (this DOES NOT verify them)
-			userID.set(message[5:])
-		elif message.startswith("[verify]"): # client claims to have verified themselves
-			async with aiohttp.ClientSession() as session:
-				# ask Neos API for their cloud var
-				async with session.post("https://api.neos.com/api/readvars", json = [{"ownerId": userID.get(), "path": "U-Psychpsyo.verificationCode"}]) as response:
-					jsonData = await response.json()
-					# if they set it to the verificationCode, set them to verified.
-					if jsonData[0].get("variable", {}).get("value", None) == verificationCode:
-						verified.set(True)
-	#except:
-	#	pass
+					if message.startswith("/"):
+						# slash commands
+						command = message[1:message.find(" ") if message.find(" ") != -1 else len(message)].lower()
+						# check if command exists
+						if command not in slashCommands:
+							# send red message and an error back
+							await websocket.send("err:The entered command does not exist.")
+							await websocket.send("msg:" + userID.get() + "|" + str(verified.get()) + "|<color=#fbb><noparse=" + str(len(message)) + ">" + message)
+							continue
+						params = message[message.find(" ") + 1:] if message.find(" ") > 0 else ""
+						async with roomLock:
+							if currentRoom.get():
+								messageColor = "bfb" if await slashCommands[command](params) else "fbb"
+								# send green message back
+								await websocket.send("msg:" + userID.get() + "|" + str(verified.get()) + "|<color=#" + messageColor + "><noparse=" + str(len(message)) + ">" + message)
+					else:
+						await sendMessage(message)
+			elif message.startswith("[join]"): # joining a room
+				# if user is already in a room, ignore this message
+				if currentRoom.get():
+					await websocket.send("err:Cannot join a room when already in a room.")
+					continue
+				roomID = int(message[6:])
+				async with roomLock:
+					room = next((room for room in rooms if room["id"] == roomID), None)
+					if room:
+						currentRoom.set(room)
+						room["users"].append(websocket)
+						await websocket.send("jnd:" + room["name"])
+						# send all old messages of the room to the new user
+						for message in room["messages"]:
+							await websocket.send(message)
+					else:
+						await websocket.send("err:The room you tried to join does not exist anymore.")
+			elif message.startswith("[leave]"): # leaving a room
+				async with roomLock:
+					if currentRoom.get():
+						currentRoom.get()["users"].remove(websocket)
+						if len(currentRoom.get()["users"]) == 0 and not currentRoom.get()["alwaysOpen"]:
+							rooms.remove(currentRoom.get())
+						currentRoom.set(None)
+				# after removing them from the room, inform the client.
+				await websocket.send("lft")
+				await refreshRoomList()
+			elif message.startswith("[room]"): # creating a room
+				roomParams = message[6:].split("|") # [0] is the name, [1] is the icon.
+				error = await createNewRoom(roomParams[0], int(roomParams[1]), userID.get())
+				if error: # if a string got returned, it is an error
+					await websocket.send("err:" + error)
+			elif message.startswith("[refresh]"): # client wants to refresh their room list
+				await refreshRoomList()
+			elif message.startswith("[iam]"): # client identifies themselves (this DOES NOT verify them)
+				userID.set(message[5:])
+			elif message.startswith("[verify]"): # client claims to have verified themselves
+				async with aiohttp.ClientSession() as session:
+					# ask Neos API for their cloud var
+					async with session.post("https://api.neos.com/api/readvars", json = [{"ownerId": userID.get(), "path": "U-Psychpsyo.verificationCode"}]) as response:
+						jsonData = await response.json()
+						# if they set it to the verificationCode, set them to verified.
+						if jsonData[0].get("variable", {}).get("value", None) == verificationCode:
+							verified.set(True)
+	except:
+		pass
 	
 	# user disconnected so it's time to clean up after them.
 	async with roomLock:
