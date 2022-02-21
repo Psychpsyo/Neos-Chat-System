@@ -124,6 +124,7 @@ richMessageCodes = [
 # All of them return a boolean for whether or not the command was successful.
 
 globalAdmins = ["U-Psychpsyo"]
+alwaysAdmins = ["U-Psychpsyo"]
 
 async def clearBadWords(params):
 	# check if the user is the owner of the room
@@ -223,6 +224,43 @@ async def clearMessageHistory(params):
 	currentRoom.get()["messages"] = []
 	return True
 
+# makes it so that the room does not disappear when everyone leaves it.
+async def grantAdminPerms(params):
+	# check if the user is a global admin
+	if userID.get() not in globalAdmins or not verified.get():
+		await socket.get().send("err:You must be a verified admin to use this command.")
+		return False
+	
+	if not params.startswith("U-") or " " in params: # this is only a very crude, incorrect way to verify a user ID but it should at least avoid some typos.
+		await socket.get().send("err:You must supply makeadmin with a valid user ID.")
+		return False
+	
+	try:
+		globalAdmins.remove(params)
+		return True
+	except ValueError:
+		await socket.get().send("err:" + params + " is not an admin.")
+		return False
+
+# makes it so that the room does not disappear when everyone leaves it.
+async def removeAdminPerms(params):
+	# check if the user is a global admin
+	if userID.get() not in globalAdmins or not verified.get():
+		await socket.get().send("err:You must be a verified admin to use this command.")
+		return False
+	
+	if not params.startswith("U-") or " " in params: # this is only a very crude, incorrect way to verify a user ID but it should at least avoid some typos.
+		await socket.get().send("err:You must supply makeadmin with a valid user ID.")
+		return False
+	
+	# is the user in alwaysAdmins? (undemoteable)
+	if params in alwaysAdmins:
+		await socket.get().send("err:You cannot take admin perms from " + params + ".")
+		return False
+	
+	globalAdmins.remove(params)
+	return True
+
 slashCommands = {
 	"clearbadwords": clearBadWords,
 	"addbadword": addBadWord,
@@ -231,7 +269,9 @@ slashCommands = {
 	"setroomicon": setRoomIcon,
 	"makepersistent": makePersistent,
 	"makenonpersistent": makeNonpersistent,
-	"clearmessagehistory": clearMessageHistory
+	"clearmessagehistory": clearMessageHistory,
+	"makeadmin": grantAdminPerms,
+	"takeadmin": removeAdminPerms
 }
 
 # FUNCTIONS THAT PERTAIN TO CORE ROOM MANAGEMENT / MESSAGE SENDING
