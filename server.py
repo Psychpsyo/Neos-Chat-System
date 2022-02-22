@@ -73,6 +73,7 @@ richMessageCodes = [
 	(":flip:", "<sprite name=upside_down>"),
 	(":flipped:", "<sprite name=upside_down>"),
 	(":vr:", "<sprite name=vr>"),
+	(":VR:", "<sprite name=vr>"), # all this should probably be case-insensitive but that can be a thing for later.
 	(":xd:", "<sprite name=grin>"),
 	(":XD:", "<sprite name=grin>"),
 	(":grin:", "<sprite name=grin>"),
