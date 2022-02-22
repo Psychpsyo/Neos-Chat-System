@@ -164,8 +164,13 @@ async def setRoomName(params):
 		await socket.get().send("err:You must be the verified owner of this room to use this command.")
 		return False
 	
+	# escape params with a <noparse>
+	params = "<noparse=" + str(len(params)) + ">" + params
+	
+	# set room name and inform all users in the room
 	currentRoom.get()["name"] = params
-	# TODO: message all users that their room name changed.
+	for user in currentRoom.get()["users"]:
+		await user.send("nme:" + params)
 	return True
 
 async def setRoomIcon(params):
@@ -215,7 +220,7 @@ async def makeNonpersistent(params):
 	currentRoom.get()["alwaysOpen"] = False
 	return True
 
-# makes it so that the room disappears when everyone leaves it.
+# remove all messages from the current room.
 async def clearMessageHistory(params):
 	# check if the user is the owner of the room
 	if currentRoom.get()["owner"] != userID.get() or not verified.get():
@@ -223,9 +228,12 @@ async def clearMessageHistory(params):
 		return False
 	
 	currentRoom.get()["messages"] = []
+	# inform all users in the room
+	for user in currentRoom.get()["users"]:
+		await user.send("clr")
 	return True
 
-# makes it so that the room does not disappear when everyone leaves it.
+# give someone admin permissions.
 async def grantAdminPerms(params):
 	# check if the user is a global admin
 	if userID.get() not in globalAdmins or not verified.get():
@@ -243,7 +251,7 @@ async def grantAdminPerms(params):
 		await socket.get().send("err:" + params + " is not an admin.")
 		return False
 
-# makes it so that the room does not disappear when everyone leaves it.
+# revoke someone's admin permissions.
 async def removeAdminPerms(params):
 	# check if the user is a global admin
 	if userID.get() not in globalAdmins or not verified.get():
@@ -262,6 +270,7 @@ async def removeAdminPerms(params):
 	globalAdmins.remove(params)
 	return True
 
+# sends a video in the current room.
 async def sendVideo(params):
 	if len(params) == 0:
 		await socket.get().send("err:You must supply a video link.")
@@ -270,9 +279,29 @@ async def sendVideo(params):
 	message = "vid:" + userID.get() + "|" + str(verified.get()) + "|" + params
 	
 	currentRoom.get()["messages"].append(message)
-	currentRoom.get()["messages"] = currentRoom.get()["messages"][-100:]
+	currentRoom.get()["messages"] = currentRoom.get()["messages"][-currentRoom.get()["messageLimit"]:]
 	for user in currentRoom.get()["users"]:
 		await user.send(message)
+	return True
+
+# sets the limit for how many of the messages in the current room are kept around.
+async def setMessageLimit(params):
+	# check if the user is a global admin
+	if userID.get() not in globalAdmins or not verified.get():
+		await socket.get().send("err:You must be a verified admin to use this command.")
+		return False
+	
+	try:
+		params = int(params)
+	except:
+		await socket.get().send("err:You must supply the command with a number.")
+		return False
+	
+	if params < 0:
+		await socket.get().send("err:Number of messages retained cannot be negative.")
+		return False
+	
+	currentRoom.get()["messageLimit"] = params
 	return True
 
 slashCommands = {
@@ -286,13 +315,14 @@ slashCommands = {
 	"clearmessagehistory": clearMessageHistory,
 	"makeadmin": grantAdminPerms,
 	"takeadmin": removeAdminPerms,
-	"video": sendVideo
+	"video": sendVideo,
+	"setmessagelimit": setMessageLimit
 }
 
 # FUNCTIONS THAT PERTAIN TO CORE ROOM MANAGEMENT / MESSAGE SENDING
 
 # returns room on sucess or an error string on error.
-async def createNewRoom(name, icon, userID, bySystem = False):
+async def createNewRoom(name, icon, userID, bySystem = False, messageLimit = 100):
 	global lastRoomID
 	global iconAmount
 	global rooms
@@ -317,7 +347,17 @@ async def createNewRoom(name, icon, userID, bySystem = False):
 		
 		# create the room
 		lastRoomID += 1
-		rooms.append({"id": lastRoomID, "name": "<noparse=" + str(len(name)) + ">" + name, "users": [] if bySystem else [socket.get()] , "owner": userID, "messages": [], "icon": icon, "alwaysOpen": True if bySystem else False, "badWords": []})
+		rooms.append({
+			"id": lastRoomID,
+			"name": "<noparse=" + str(len(name)) + ">" + name,
+			"users": [] if bySystem else [socket.get()],
+			"owner": userID,
+			"messages": [],
+			"icon": icon,
+			"alwaysOpen": True if bySystem else False,
+			"badWords": [],
+			"messageLimit": messageLimit
+		})
 		
 		# add user to the room
 		if not bySystem:
@@ -396,7 +436,7 @@ async def sendMessage(message):
 	
 	async with roomLock:
 		currentRoom.get()["messages"].append(message)
-		currentRoom.get()["messages"] = currentRoom.get()["messages"][-100:]
+		currentRoom.get()["messages"] = currentRoom.get()["messages"][-currentRoom.get()["messageLimit"]:]
 		
 		for user in currentRoom.get()["users"]:
 			await user.send(message)
