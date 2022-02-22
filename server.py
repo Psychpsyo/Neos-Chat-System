@@ -261,6 +261,19 @@ async def removeAdminPerms(params):
 	globalAdmins.remove(params)
 	return True
 
+async def sendVideo(params):
+	if len(params) == 0:
+		await socket.get().send("err:You must supply a video link.")
+		return False
+	
+	message = "vid:" + userID.get() + "|" + str(verified.get()) + "|" + params
+	
+	currentRoom.get()["messages"].append(message)
+	currentRoom.get()["messages"] = currentRoom.get()["messages"][-100:]
+	for user in currentRoom.get()["users"]:
+		await user.send(message)
+	return True
+
 slashCommands = {
 	"clearbadwords": clearBadWords,
 	"addbadword": addBadWord,
@@ -271,7 +284,8 @@ slashCommands = {
 	"makenonpersistent": makeNonpersistent,
 	"clearmessagehistory": clearMessageHistory,
 	"makeadmin": grantAdminPerms,
-	"takeadmin": removeAdminPerms
+	"takeadmin": removeAdminPerms,
+	"video": sendVideo
 }
 
 # FUNCTIONS THAT PERTAIN TO CORE ROOM MANAGEMENT / MESSAGE SENDING
@@ -361,24 +375,28 @@ async def sendMessage(message):
 	if len(message) == 0:
 		return
 	
-	# parse emoji and RTF tags into the message (this step also escapes all other RTF sequences.)
-	badWords = []
-	async with roomLock:
-		badWords = currentRoom.get()["badWords"]
-	
-	message = formatRichMessage(message, badWords)
-	
 	# trim messages down to 2000 characters
 	message = message[:2000]
-	# TODO: Sanitize message more
+	
+	# check if message is a video link and, if so, send a "vid:" reply instead of "msg:"
+	isVideo = False
+	if False: # for now this is done via the /video command
+		isVideo = True
+	else:
+		# parse emoji and RTF tags into the message (this step also escapes all other RTF sequences.)
+		badWords = []
+		async with roomLock:
+			badWords = currentRoom.get()["badWords"]
+		
+		message = formatRichMessage(message, badWords)
 	
 	# prepare final message string
-	message = "msg:" + userID.get() + "|" + str(verified.get()) + "|" + message
-	
-	currentRoom.get()["messages"].append(message)
-	currentRoom.get()["messages"] = currentRoom.get()["messages"][-100:]
+	message = ("vid:" if isVideo else "msg:") + userID.get() + "|" + str(verified.get()) + "|" + message
 	
 	async with roomLock:
+		currentRoom.get()["messages"].append(message)
+		currentRoom.get()["messages"] = currentRoom.get()["messages"][-100:]
+		
 		for user in currentRoom.get()["users"]:
 			await user.send(message)
 
@@ -420,7 +438,7 @@ async def takeClient(websocket, path):
 						async with roomLock:
 							if currentRoom.get():
 								messageColor = "bfb" if await slashCommands[command](params) else "fbb"
-								# send green message back
+								# send colored command message back
 								await websocket.send("msg:" + userID.get() + "|" + str(verified.get()) + "|<color=#" + messageColor + "><noparse=" + str(len(message)) + ">" + message)
 					else:
 						await sendMessage(message)
