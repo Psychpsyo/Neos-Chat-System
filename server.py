@@ -214,7 +214,7 @@ async def makePersistent(params):
 async def makeNonpersistent(params):
 	# check if the user is a global admin or owner of the room and verified
 	if (userID.get() not in globalAdmins and currentRoom.get()["owner"] != userID.get()) or not verified.get():
-		await socket.get().send("err:You must be a verified admin to use this command.")
+		await socket.get().send("err:You must be a verified admin or owner of this room to use this command.")
 		return False
 	
 	currentRoom.get()["alwaysOpen"] = False
@@ -286,9 +286,9 @@ async def sendVideo(params):
 
 # sets the limit for how many of the messages in the current room are kept around.
 async def setMessageLimit(params):
-	# check if the user is a global admin
-	if userID.get() not in globalAdmins or not verified.get():
-		await socket.get().send("err:You must be a verified admin to use this command.")
+	# check if the user is a global admin or owner of the room and verified
+	if (userID.get() not in globalAdmins and currentRoom.get()["owner"] != userID.get()) or not verified.get():
+		await socket.get().send("err:You must be a verified admin or owner of this room to use this command.")
 		return False
 	
 	try:
@@ -299,6 +299,11 @@ async def setMessageLimit(params):
 	
 	if params < 0:
 		await socket.get().send("err:Number of messages retained cannot be negative.")
+		return False
+	
+	# check if the user is a global admin when setting to a high value.
+	if params > 100 and (userID.get() not in globalAdmins or not verified.get()):
+		await socket.get().send("err:You must be a verified admin to set the message limit to more than 100.")
 		return False
 	
 	currentRoom.get()["messageLimit"] = params
