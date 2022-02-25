@@ -240,7 +240,7 @@ async def grantAdminPerms(params):
 		await socket.get().send("err:You must be a verified admin to use this command.")
 		return False
 	
-	if not params.startswith("U-") or " " in params: # this is only a very crude, incorrect way to verify a user ID but it should at least avoid some typos.
+	if not params.startswith("U-") or " " in params or params == "": # this is only a very crude, incorrect way to verify a user ID but it should at least avoid some typos.
 		await socket.get().send("err:You must supply makeadmin with a valid user ID.")
 		return False
 	
@@ -309,6 +309,20 @@ async def setMessageLimit(params):
 	currentRoom.get()["messageLimit"] = params
 	return True
 
+# transfer ownership of the current room to someone else.
+async def transferOwnership(params):
+	# check if the user is the owner of the room
+	if currentRoom.get()["owner"] != userID.get() or not verified.get():
+		await socket.get().send("err:You must be the verified owner of this room to use this command.")
+		return False
+	
+	if not params.startswith("U-") or " " in params or params == "": # this is only a very crude, incorrect way to verify a user ID but it should at least avoid some typos.
+		await socket.get().send("err:You must supply tranferownership with a valid user ID.")
+		return False
+	
+	currentRoom.get()["owner"] = params
+	return True
+
 slashCommands = {
 	"clearbadwords": clearBadWords,
 	"addbadword": addBadWord,
@@ -321,7 +335,8 @@ slashCommands = {
 	"makeadmin": grantAdminPerms,
 	"takeadmin": removeAdminPerms,
 	"video": sendVideo,
-	"setmessagelimit": setMessageLimit
+	"setmessagelimit": setMessageLimit,
+	"transferownership": transferOwnership
 }
 
 # FUNCTIONS THAT PERTAIN TO CORE ROOM MANAGEMENT / MESSAGE SENDING
