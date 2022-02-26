@@ -323,6 +323,26 @@ async def transferOwnership(params):
 	currentRoom.get()["owner"] = params
 	return True
 
+# sets the current room to read only, so no new messages can be sent in it (except by the owner)
+async def makeReadOnly(params):
+	# check if the user is the owner of the room
+	if currentRoom.get()["owner"] != userID.get() or not verified.get():
+		await socket.get().send("err:You must be the verified owner of this room to use this command.")
+		return False
+	
+	currentRoom.get()["readOnly"] = True
+	return True
+
+# disables readonly in the current room so people can send messages again
+async def unmakeReadOnly(params):
+	# check if the user is the owner of the room
+	if currentRoom.get()["owner"] != userID.get() or not verified.get():
+		await socket.get().send("err:You must be the verified owner of this room to use this command.")
+		return False
+	
+	currentRoom.get()["readOnly"] = False
+	return True
+
 slashCommands = {
 	"clearbadwords": clearBadWords,
 	"addbadword": addBadWord,
@@ -336,13 +356,15 @@ slashCommands = {
 	"takeadmin": removeAdminPerms,
 	"video": sendVideo,
 	"setmessagelimit": setMessageLimit,
-	"transferownership": transferOwnership
+	"transferownership": transferOwnership,
+	"makereadonly": makeReadOnly,
+	"unmakereadonly": unmakeReadOnly
 }
 
 # FUNCTIONS THAT PERTAIN TO CORE ROOM MANAGEMENT / MESSAGE SENDING
 
 # returns room on sucess or an error string on error.
-async def createNewRoom(name, icon, userID, bySystem = False, messageLimit = 100):
+async def createNewRoom(name, icon, userID, bySystem = False, messageLimit = 100, readOnly = False):
 	global lastRoomID
 	global iconAmount
 	global rooms
@@ -376,7 +398,8 @@ async def createNewRoom(name, icon, userID, bySystem = False, messageLimit = 100
 			"icon": icon,
 			"alwaysOpen": True if bySystem else False,
 			"badWords": [],
-			"messageLimit": messageLimit
+			"messageLimit": messageLimit,
+			"readOnly": readOnly
 		})
 		
 		# add user to the room
@@ -424,6 +447,7 @@ def formatRichMessage(message, badWords):
 	# return the fully substituted and replaced string
 	return message
 
+# gets called with roomLock already aquired.
 async def sendMessage(message):
 	# do not send messages if you have no userID
 	if not userID.get():
@@ -446,20 +470,18 @@ async def sendMessage(message):
 	else:
 		# parse emoji and RTF tags into the message (this step also escapes all other RTF sequences.)
 		badWords = []
-		async with roomLock:
-			badWords = currentRoom.get()["badWords"]
+		badWords = currentRoom.get()["badWords"]
 		
 		message = formatRichMessage(message, badWords)
 	
 	# prepare final message string
 	message = ("vid:" if isVideo else "msg:") + userID.get() + "|" + str(verified.get()) + "|" + message
 	
-	async with roomLock:
-		currentRoom.get()["messages"].append(message)
-		currentRoom.get()["messages"] = currentRoom.get()["messages"][-currentRoom.get()["messageLimit"]:]
-		
-		for user in currentRoom.get()["users"]:
-			await user.send(message)
+	currentRoom.get()["messages"].append(message)
+	currentRoom.get()["messages"] = currentRoom.get()["messages"][-currentRoom.get()["messageLimit"]:]
+	
+	for user in currentRoom.get()["users"]:
+		await user.send(message)
 
 async def refreshRoomList():
 	global rooms
@@ -485,24 +507,28 @@ async def takeClient(websocket, path):
 			if message.startswith("[message]"): # sending a message
 				# cut out the initial [message]
 				message = message[9:]
-				if currentRoom.get():
-					if message.startswith("/"):
-						# slash commands
-						command = message[1:message.find(" ") if message.find(" ") != -1 else len(message)].lower()
-						# check if command exists
-						if command not in slashCommands:
-							# send red message and an error back
-							await websocket.send("err:The entered command does not exist.")
-							await websocket.send("msg:" + userID.get() + "|" + str(verified.get()) + "|<color=#fbb><noparse=" + str(len(message)) + ">" + message)
+				async with roomLock:
+					if currentRoom.get():
+						# check if the room is readOnly
+						if currentRoom.get()["readOnly"] and (currentRoom.get()["owner"] != userID.get() or not verified.get()):
+							await socket.get().send("err:This room is read-only. You must be the verified owner of this room to send messages here.")
 							continue
-						params = message[message.find(" ") + 1:] if message.find(" ") > 0 else ""
-						async with roomLock:
-							if currentRoom.get():
-								messageColor = "bfb" if await slashCommands[command](params) else "fbb"
-								# send colored command message back
-								await websocket.send("msg:" + userID.get() + "|" + str(verified.get()) + "|<color=#" + messageColor + "><noparse=" + str(len(message)) + ">" + message)
-					else:
-						await sendMessage(message)
+						
+						if message.startswith("/"):
+							# slash commands
+							command = message[1:message.find(" ") if message.find(" ") != -1 else len(message)].lower()
+							# check if command exists
+							if command not in slashCommands:
+								# send red message and an error back
+								await websocket.send("err:The entered command does not exist.")
+								await websocket.send("msg:" + userID.get() + "|" + str(verified.get()) + "|<color=#fbb><noparse=" + str(len(message)) + ">" + message)
+								continue
+							params = message[message.find(" ") + 1:] if message.find(" ") > 0 else ""
+							messageColor = "bfb" if await slashCommands[command](params) else "fbb"
+							# send colored command message back
+							await websocket.send("msg:" + userID.get() + "|" + str(verified.get()) + "|<color=#" + messageColor + "><noparse=" + str(len(message)) + ">" + message)
+						else:
+							await sendMessage(message)
 			elif message.startswith("[join]"): # joining a room
 				# if user is already in a room, ignore this message
 				if currentRoom.get():
