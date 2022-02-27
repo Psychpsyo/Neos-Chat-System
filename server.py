@@ -174,13 +174,10 @@ async def setRoomName(params):
 		await socket.get().send("err:You must be the verified owner of this room to use this command.")
 		return False
 	
-	# escape params with a <noparse>
-	params = "<noparse=" + str(len(params)) + ">" + params
-	
 	# set room name and inform all users in the room
 	currentRoom.get()["name"] = params
 	for user in currentRoom.get()["users"]:
-		await user.send("nme:" + params)
+		await user.send("nme:" + "<noparse=" + str(len(params)) + ">" + params)
 	# save default (always open) rooms to file if necessary
 	if currentRoom.get()["alwaysOpen"]:
 		saveDefaultRooms()
@@ -419,7 +416,7 @@ async def createNewRoom(name, icon, userID, bySystem = False, messageLimit = 100
 		lastRoomID += 1
 		rooms.append({
 			"id": lastRoomID,
-			"name": "<noparse=" + str(len(name)) + ">" + name,
+			"name": name,
 			"users": [] if bySystem else [socket.get()],
 			"owner": userID,
 			"messages": [],
@@ -433,7 +430,7 @@ async def createNewRoom(name, icon, userID, bySystem = False, messageLimit = 100
 		# add user to the room
 		if not bySystem:
 			currentRoom.set(rooms[-1])
-			await socket.get().send("jnd:" + rooms[-1]["name"])
+			await socket.get().send("jnd:" + "<noparse=" + str(len(rooms[-1]["name"])) + ">" + rooms[-1]["name"])
 
 def formatRichMessage(message, badWords):
 	newMessage = [message]
@@ -515,7 +512,7 @@ async def refreshRoomList():
 	global rooms
 	async with roomLock:
 		for room in rooms:
-			await socket.get().send("rom:" + str(room["id"]) + "|" + room["owner"] + "|" + str(len(room["users"])) + "|" + str(room["icon"]) + "|" + room["name"])
+			await socket.get().send("rom:" + str(room["id"]) + "|" + room["owner"] + "|" + str(len(room["users"])) + "|" + str(room["icon"]) + "|" + "<noparse=" + str(len(room["name"])) + ">" + room["name"])
 
 # gets called with roomLock already aquired.
 def saveDefaultRooms():
@@ -584,7 +581,7 @@ async def takeClient(websocket, path):
 					if room:
 						currentRoom.set(room)
 						room["users"].append(websocket)
-						await websocket.send("jnd:" + room["name"])
+						await websocket.send("jnd:" + "<noparse=" + str(len(room["name"])) + ">" + room["name"])
 						# send all old messages of the room to the new user
 						for message in room["messages"]:
 							await websocket.send(message)
