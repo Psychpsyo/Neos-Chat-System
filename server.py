@@ -5,6 +5,7 @@ import base64
 import aiohttp
 import os
 import re
+import json
 
 # VARIABLE DEFINITIONS
 
@@ -134,6 +135,9 @@ async def clearBadWords(params):
 		return False
 	
 	currentRoom.get()["badWords"] = []
+	# save default (always open) rooms to file if necessary
+	if currentRoom.get()["alwaysOpen"]:
+		saveDefaultRooms()
 	return True
 
 async def addBadWord(params):
@@ -143,6 +147,9 @@ async def addBadWord(params):
 		return False
 	
 	currentRoom.get()["badWords"].append(params)
+	# save default (always open) rooms to file if necessary
+	if currentRoom.get()["alwaysOpen"]:
+		saveDefaultRooms()
 	return True
 
 async def removeBadWord(params):
@@ -153,6 +160,9 @@ async def removeBadWord(params):
 	
 	try:
 		currentRoom.get()["badWords"].remove(params)
+		# save default (always open) rooms to file if necessary
+		if currentRoom.get()["alwaysOpen"]:
+			saveDefaultRooms()
 		return True
 	except ValueError:
 		await socket.get().send("err:The word you were trying to remove was not on the list of bad words.")
@@ -171,6 +181,9 @@ async def setRoomName(params):
 	currentRoom.get()["name"] = params
 	for user in currentRoom.get()["users"]:
 		await user.send("nme:" + params)
+	# save default (always open) rooms to file if necessary
+	if currentRoom.get()["alwaysOpen"]:
+		saveDefaultRooms()
 	return True
 
 async def setRoomIcon(params):
@@ -198,6 +211,9 @@ async def setRoomIcon(params):
 		return False
 	
 	currentRoom.get()["icon"] = newIcon
+	# save default (always open) rooms to file if necessary
+	if currentRoom.get()["alwaysOpen"]:
+		saveDefaultRooms()
 	return True
 
 # makes it so that the room does not disappear when everyone leaves it.
@@ -208,6 +224,7 @@ async def makePersistent(params):
 		return False
 	
 	currentRoom.get()["alwaysOpen"] = True
+	saveDefaultRooms()
 	return True
 
 # makes it so that the room disappears when everyone leaves it.
@@ -307,6 +324,9 @@ async def setMessageLimit(params):
 		return False
 	
 	currentRoom.get()["messageLimit"] = params
+	# save default (always open) rooms to file if necessary
+	if currentRoom.get()["alwaysOpen"]:
+		saveDefaultRooms()
 	return True
 
 # transfer ownership of the current room to someone else.
@@ -321,6 +341,9 @@ async def transferOwnership(params):
 		return False
 	
 	currentRoom.get()["owner"] = params
+	# save default (always open) rooms to file if necessary
+	if currentRoom.get()["alwaysOpen"]:
+		saveDefaultRooms()
 	return True
 
 # sets the current room to read only, so no new messages can be sent in it (except by the owner)
@@ -331,6 +354,9 @@ async def makeReadOnly(params):
 		return False
 	
 	currentRoom.get()["readOnly"] = True
+	# save default (always open) rooms to file if necessary
+	if currentRoom.get()["alwaysOpen"]:
+		saveDefaultRooms()
 	return True
 
 # disables readonly in the current room so people can send messages again
@@ -341,6 +367,9 @@ async def unmakeReadOnly(params):
 		return False
 	
 	currentRoom.get()["readOnly"] = False
+	# save default (always open) rooms to file if necessary
+	if currentRoom.get()["alwaysOpen"]:
+		saveDefaultRooms()
 	return True
 
 slashCommands = {
@@ -364,7 +393,7 @@ slashCommands = {
 # FUNCTIONS THAT PERTAIN TO CORE ROOM MANAGEMENT / MESSAGE SENDING
 
 # returns room on sucess or an error string on error.
-async def createNewRoom(name, icon, userID, bySystem = False, messageLimit = 100, readOnly = False):
+async def createNewRoom(name, icon, userID, bySystem = False, messageLimit = 100, readOnly = False, badWords = []):
 	global lastRoomID
 	global iconAmount
 	global rooms
@@ -375,9 +404,8 @@ async def createNewRoom(name, icon, userID, bySystem = False, messageLimit = 100
 		if len(name) == 0:
 			name = "Unnamed Room #" + str(lastRoomID)
 		# validate userID if the room isn't created by the system
-		if not bySystem:
-			if not verified.get():
-				return "Unverified users cannot create rooms.\nYou need to connect from your dash to verify your identity to create a room."
+		if not bySystem and not verified.get():
+			return "Unverified users cannot create rooms.\nYou need to connect from your dash to verify your identity to create a room."
 		
 		# truncate room name to 50 characters.
 		if len(name) > 50:
@@ -397,7 +425,7 @@ async def createNewRoom(name, icon, userID, bySystem = False, messageLimit = 100
 			"messages": [],
 			"icon": icon,
 			"alwaysOpen": True if bySystem else False,
-			"badWords": [],
+			"badWords": badWords,
 			"messageLimit": messageLimit,
 			"readOnly": readOnly
 		})
@@ -489,6 +517,22 @@ async def refreshRoomList():
 		for room in rooms:
 			await socket.get().send("rom:" + str(room["id"]) + "|" + room["owner"] + "|" + str(len(room["users"])) + "|" + str(room["icon"]) + "|" + room["name"])
 
+# gets called with roomLock already aquired.
+def saveDefaultRooms():
+	roomsObject = {"rooms": []}
+	for room in rooms:
+		if room["alwaysOpen"]:
+			roomsObject["rooms"].append({
+				"name": room["name"],
+				"icon": room["icon"],
+				"owner": room["owner"],
+				"messageLimit": room["messageLimit"],
+				"readOnly": room["readOnly"],
+				"badWords": room["badWords"]
+			})
+	
+	with open("rooms.json", "w", encoding = "utf-8") as file:
+		json.dump(roomsObject, file, ensure_ascii = False, indent = 4)
 
 # websocket function
 async def takeClient(websocket, path):
@@ -587,10 +631,10 @@ loop = asyncio.get_event_loop()
 
 # create the always-open default rooms
 print("Creating default rooms.")
-loop.run_until_complete(createNewRoom("Logix Help #1", 1, "U-Psychpsyo", bySystem = True))
-loop.run_until_complete(createNewRoom("Logix Help #2", 1, "U-Psychpsyo", bySystem = True))
-loop.run_until_complete(createNewRoom("Default Chat #1", 3, "U-Psychpsyo", bySystem = True))
-loop.run_until_complete(createNewRoom("Default Chat #2", 3, "U-Psychpsyo", bySystem = True))
+with open("rooms.json") as jsonFile:
+	jsonData = json.load(jsonFile)
+	for room in jsonData["rooms"]:
+		loop.run_until_complete(createNewRoom(room["name"], room["icon"], room["owner"], bySystem = True, messageLimit = room.get("messageLimit", 100), readOnly = room["readOnly"], badWords = room.get("badWords", [])))
 
 # start websocket and listen
 print("Starting websocket.")

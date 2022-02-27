@@ -1,0 +1,16 @@
+{
+	"rooms": [
+		{
+			"name": "Logix Help",
+			"icon": 1,
+			"owner": "U-Psychpsyo",
+			"readOnly": false
+		},
+		{
+			"name": "Default Chat",
+			"icon": 3,
+			"owner": "U-Psychpsyo",
+			"readOnly": false
+		}
+	]
+}
